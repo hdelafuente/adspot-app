@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -37,11 +38,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	// ── CORS origins ─────────────────────────────────────────────────────────
+	// ALLOWED_ORIGINS accepts a comma-separated list of origins.
+	// Default: http://localhost:3000 (Next.js dev server).
+	rawOrigins := os.Getenv("ALLOWED_ORIGINS")
+	if rawOrigins == "" {
+		rawOrigins = "http://localhost:3000"
+	}
+	allowedOrigins := strings.Split(rawOrigins, ",")
+
 	// ── Router ────────────────────────────────────────────────────────────────
 	r := chi.NewRouter()
 
-	// Global middleware (order matters: RequestID must run before Logger so the
-	// request ID is available when the Logger middleware builds its log line).
+	// Global middleware (order matters: CORS first so preflight requests are
+	// handled before RequestID/Logger run; RequestID must run before Logger).
+	r.Use(middleware.CORS(allowedOrigins))
 	r.Use(chiMiddleware.RequestID)
 	r.Use(chiMiddleware.RealIP)
 	r.Use(middleware.Logger)      // structured JSON logger — replaces chiMiddleware.Logger

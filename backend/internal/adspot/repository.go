@@ -97,6 +97,37 @@ func (r *Repository) ListEligible(ctx context.Context, placement string) (map[st
 	return result, rows.Err()
 }
 
+// ListAll returns every AdSpot (active and inactive) as a flat slice.
+// If placement is non-empty only that placement is returned.
+// Intended for admin/management UIs that need to display all records.
+func (r *Repository) ListAll(ctx context.Context, placement string) ([]*AdSpot, error) {
+	q := `SELECT id, title, image_url, placement, status, created_at, deactivated_at, ttl_minutes
+	      FROM adspots`
+
+	args := []any{}
+	if placement != "" {
+		q += " WHERE placement = ?"
+		args = append(args, placement)
+	}
+	q += " ORDER BY created_at DESC"
+
+	rows, err := r.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("list all adspots: %w", err)
+	}
+	defer rows.Close()
+
+	var result []*AdSpot
+	for rows.Next() {
+		spot, err := scanRows(rows)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, spot)
+	}
+	return result, rows.Err()
+}
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 func scanRow(row *sql.Row) (*AdSpot, error) {
