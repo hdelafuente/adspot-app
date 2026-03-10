@@ -25,6 +25,8 @@ func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Post("/", h.create)
 	r.Get("/", h.listEligible)
+	// /all must be registered before /{id} so chi matches the static segment first.
+	r.Get("/all", h.listAll)
 	r.Get("/{id}", h.getByID)
 	r.Post("/{id}/deactivate", h.deactivate)
 	return r
@@ -110,6 +112,26 @@ func (h *Handler) listEligible(w http.ResponseWriter, r *http.Request) {
 		log.Error("list eligible adspots failed", slog.Any("error", err))
 		writeError(w, "internal error", http.StatusInternalServerError)
 		return
+	}
+	writeJSON(w, spots, http.StatusOK)
+}
+
+// GET /adspots/all?placement=...
+// Returns every AdSpot (active and inactive) as a flat JSON array.
+// Designed for admin/management UIs.
+func (h *Handler) listAll(w http.ResponseWriter, r *http.Request) {
+	log := applogger.FromContext(r.Context())
+	placement := r.URL.Query().Get("placement")
+
+	spots, err := h.repo.ListAll(r.Context(), placement)
+	if err != nil {
+		log.Error("list all adspots failed", slog.Any("error", err))
+		writeError(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	// Return an empty array instead of null when there are no results.
+	if spots == nil {
+		spots = []*AdSpot{}
 	}
 	writeJSON(w, spots, http.StatusOK)
 }
